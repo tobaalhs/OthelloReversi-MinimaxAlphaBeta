@@ -1,6 +1,6 @@
 #  BASE GAME MADE BY Kevan Hong-Nhan Nguyen
 #  Some comments changed or added by us to let US understand better
-#  In this class, im pretty sure nothing else was changed
+#  In this file, im pretty sure nothing else was changed
 
 ''' this comments are by the original creator'''
 # most of these comments by us

@@ -1,5 +1,5 @@
 #  BASE GAME MADE BY Kevan Hong-Nhan Nguyen
-#  Slight changes made here to show stats on screen, and some other details
+#  Slight changes made here to show stats on screen, not much else, this one won't be further commented
 
 import othello
 import tkinter
@@ -63,7 +63,7 @@ class GameBoard:
             for col in range(self._cols):
                 if self._game_state.get_board()[row][col] != othello.NONE:
                     self._draw_cell(row, col)
-                
+    
     def _draw_cell(self, row, col):
         x1 = self._offset_x + col * self.get_cell_width()
         y1 = self._offset_y + row * self.get_cell_height()
@@ -96,14 +96,14 @@ class GameBoard:
         for row, col in valid_moves:
             fill_color = 'yellow'
             if (row, col) in self._best_moves: fill_color = 'orange'
-            if (row, col) == self._selected_move: fill_color = 'cyan'
+            if (row, col) == self._selected_move: fill_color = 'red'
             x1 = self._offset_x + col * self.get_cell_width()
             y1 = self._offset_y + row * self.get_cell_height()
             x2 = x1 + self.get_cell_width()
             y2 = y1 + self.get_cell_height()
             self._board.create_rectangle(x1, y1, x2, y2, fill = fill_color, outline = fill_color)
 
-
+# this class was added to show stats in real time
 class StatsView:
     def __init__(self, root_window):
         self._frame = tkinter.Frame(master = root_window, background=BACKGROUND_COLOR, padx=10, pady=10)
@@ -124,7 +124,6 @@ class StatsView:
     def get_frame(self):
         return self._frame
     
-    # --- NEW: Helper to store weights per player ---
     def set_weights(self, weights):
         self._weights = weights
 
@@ -133,18 +132,17 @@ class StatsView:
 
     def _format_weights(self, w):
         if not w: return "Default / None"
-        # Abbreviate to fit: C=Corner, M=Mobility, $=Coin
-        return f"C: {w.get('corner',0):.3f}  M: {w.get('mobility',0):.3f}  P: {w.get('coin',0):.3f}"
+        # C = corner, M = mobility, P = pieces
+        return f"C: {w.get('corner',0):.3f}  M: {w.get('mobility',0):.3f}  P: {w.get('pieces',0):.3f}"
 
     def update_stats(self, stats: dict):
         weights_str = self._format_weights(self._weights)
 
         if not stats:
-            # Just show weights if no move stats yet
             text = (f"AI STATISTICS\n"
                     f"----------------\n"
                     f"Status: Waiting...\n\n"
-                    f"--- TRAINED BRAIN ---\n"
+                    f"--- TRAINED WEIGHTS ---\n"
                     f"{weights_str}\n"
                     f"----------------\n")
             self._label['text'] = text
@@ -162,9 +160,10 @@ class StatsView:
         text = (f"AI STATISTICS\n"
                 f"----------------\n"
                 f"Algorithm:   {'Q-Learning'}\n"
+                f"Match/Iteration:     {stats.get('iteration', '-')}\n"
                 f"Time:    {stats.get('time', '-')}s\n"
                 f"Q Value:   {stats.get('Q value', 0):.4f}\n"
-                f"{rate_line}"
+                f"{rate_line}\n"
                 f"--- TRAINED WEIGHTS ---\n"
                 f"\n{weights_str}\n\n"
                 f"----------------\n\n"
@@ -173,7 +172,7 @@ class StatsView:
         
         self._label['text'] = text
 
-# (Score, Turn, OptionDialog remain unchanged - copy from previous file)
+# from here on mostly untouched
 class Score:
     def __init__(self, color, game_state, root_window):
         self._player = color
@@ -185,7 +184,13 @@ class Score:
     def get_score_label(self): return self._score_label
     def get_score(self): return self._score
     def _change_score_text(self): self._score_label['text'] =  self._score_text()
-    def _score_text(self): return PLAYERS[self._player] + ' - ' + str(self._score)
+    def _score_text(self): 
+        player = ''
+        if PLAYERS[self._player] == 'Black':
+            player = 'B'
+        else: 
+            player = 'W'
+        return player + ' - ' + str(self._score)
 
 class Turn:
     def __init__(self, game_state, root_window):
@@ -210,7 +215,7 @@ class Turn:
     def update_turn(self, turn):
         self._player = turn
         self.change_turn_text()
-    def _turn_text(self): return PLAYERS[self._player] + " player's turn"
+    def _turn_text(self): return PLAYERS[self._player] + "'s turn"
 
 class OptionDialog:
     def __init__(self, current_rows, current_columns, current_first_player, current_top_left_player, current_victory_type, current_black_type, current_white_type):
@@ -232,7 +237,6 @@ class OptionDialog:
         self._black_type = current_black_type 
         self._white_type = current_white_type
 
-        # (Layout code...)
         self._row_frame = tkinter.Frame(master = self._dialog_window)
         tkinter.Label(self._row_frame, text='Rows:', font=DIALOG_FONT).grid(row=0, column=0, sticky=tkinter.E)
         self._rows_var = tkinter.IntVar(value=current_rows)

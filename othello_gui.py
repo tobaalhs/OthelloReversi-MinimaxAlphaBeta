@@ -1,3 +1,7 @@
+#  BASE GAME MADE BY Kevan Hong-Nhan Nguyen
+#  This was the one changed the most from original
+
+
 import othello
 import othello_models
 import othello_ai
@@ -49,7 +53,7 @@ class OthelloGUI:
         self._game_menu.add_command(label = 'New Game', command = self._new_game)
         self._game_menu.add_command(label = 'Game Settings', command = self._configure_game_settings)
         self._game_menu.add_separator()
-        self._game_menu.add_command(label = 'Train AI (ML)', command = self._start_training)
+        self._game_menu.add_command(label = 'Train Q-Learning', command = self._start_training)
         self._game_menu.add_separator()
         self._game_menu.add_command(label = 'Save AI Brain', command = self._save_weights)
         self._game_menu.add_command(label = 'Load AI Brain', command = self._load_weights)
@@ -108,10 +112,10 @@ class OthelloGUI:
         self._player_turn.update_turn(self._game_state.get_turn())
         
         self._stats_view.reset_weights()
-        # Pre-set the "Known" weights for display so user sees them immediately
-        self._stats_view.set_weights(othello.BLACK, othello_ai.DEFAULT_WEIGHTS)
-        if self._learned_weights:
-            self._stats_view.set_weights(othello.WHITE, self._learned_weights)
+        
+        w = self._learned_weights if self._learned_weights else othello_ai.DEFAULT_WEIGHTS
+        self._stats_view.set_weights(w)
+        self._stats_view.update_stats(None)
         
         self._check_for_ai_turn()
         
@@ -161,22 +165,14 @@ class OthelloGUI:
         is_white_ai = (current_turn == othello.WHITE and self._white_type == 'Computer')
         if not (is_black_ai or is_white_ai): return
 
-        # --- UPDATED LOGIC HERE ---
-        # BLACK = Always Default (Teacher)
-        # WHITE = Always Learned (Student)
+        # Use learned weights if available, otherwise defaults
+        w = self._learned_weights if self._learned_weights else othello_ai.DEFAULT_WEIGHTS
         
-        if current_turn == othello.BLACK:
-            w = othello_ai.DEFAULT_WEIGHTS
-        else:
-            # If we haven't trained yet, White falls back to Default too
-            w = self._learned_weights if self._learned_weights else othello_ai.DEFAULT_WEIGHTS
-        
-        # Run AI
-        ai_result = othello_ai.get_best_move(self._game_state, weights=w)
+        # Run AI (exploration 0 means pure exploitation - try best move)
+        ai_result = othello_ai.get_best_move(self._game_state, weights=w, exploration=0)
         
         # Update View
-        # We explicitly set the view weights to match our logic above
-        self._stats_view.set_weights(current_turn, w)
+        self._stats_view.set_weights(w)
         self._stats_view.update_stats(ai_result)
 
         move = ai_result['move'] 
@@ -201,52 +197,51 @@ class OthelloGUI:
 
 
     # -----------------------------------------------------------
-    #  TRAINING HANDLERS & SAVE/LOAD
+    #  Q-LEARNING HANDLERS & SAVE/LOAD
     # -----------------------------------------------------------
 
     def _start_training(self):
-        count = tkinter.simpledialog.askinteger("Machine Learning", 
-                                                "Enter training iterations (e.g. 50):",
+        count = tkinter.simpledialog.askinteger("Q-Learning", 
+                                                "Enter training episodes (Self-Play):\n"
+                                                "Recommended: 1000+",
                                                 parent=self._root_window,
-                                                minvalue=1, maxvalue=2000)
+                                                minvalue=10, maxvalue=50000)
         if count:
             start_weights = None
             if self._learned_weights:
                 use_existing = tkinter.messagebox.askyesno("Training Mode", 
-                                "Do you want to Continue training the current AI (White)?\n\n"
-                                "YES = Keep current learned weights\n"
-                                "NO = Reset to RANDOM weights (Retrain)")
+                                "Continue training current brain?\n"
+                                "YES = Keep current Q-weights\n"
+                                "NO = Reset to Defaults")
                 if use_existing:
                     start_weights = self._learned_weights
 
             self._is_training = True
-            self._root_window.title("Othello - LEARNING IN BACKGROUND... (Board Disabled)")
+            self._root_window.title(f"Othello - Q-LEARNING {count} GAMES... (Board Disabled)")
             
             t = threading.Thread(target=self._run_training_background, args=(count, start_weights))
             t.daemon = True 
             t.start()
 
-    def _run_training_background(self, iterations, start_weights):
-        def on_progress(current, total, weights, wins):
-            self._root_window.after(0, lambda: self._update_training_stats(current, total, weights, wins))
+    def _run_training_background(self, episodes, start_weights):
+        def on_progress(current, total, weights, exploration_info, duration, last_q_value):
+            self._root_window.after(0, lambda: self._update_training_stats(current, total, weights, exploration_info, duration, last_q_value))
 
-        best_weights = othello_ai.train_ai(iterations, on_progress, starting_weights=start_weights)
+        best_weights = othello_ai.train_ai(episodes, on_progress, starting_weights=start_weights)
         self._learned_weights = best_weights
         
         self._root_window.after(0, self._on_training_complete)
 
-    def _update_training_stats(self, current, total, weights, wins):
-        # Update White's weights in the view to show progress
-        # Black stays as Default
-        self._stats_view.set_weights(othello.BLACK, othello_ai.DEFAULT_WEIGHTS)
-        self._stats_view.set_weights(othello.WHITE, weights)
+    def _update_training_stats(self, current, total, weights, exploration_info, duration, last_q_value):
+        # Update view
+        self._stats_view.set_weights(weights)
         
         stats_msg = {
-            'depth': 'TRAINING',
-            'nodes': f'{current} / {total}',
-            'time': 'Running...',
-            'score': float(wins),
-            'move': 'Mutating...',
+            'algorithm': 'Q-Learn',
+            'time': f'{duration:.4f}s',
+            'rate': f'{exploration_info}',
+            'Q value': last_q_value,
+            'move': 'Training...',
             'best_moves': [],
             'weights': weights 
         }
@@ -255,9 +250,10 @@ class OthelloGUI:
     def _on_training_complete(self):
         self._is_training = False
         self._root_window.title("Othello - Training Complete!")
-        print(f"Final Learned Weights: {self._learned_weights}")
+        print(f"Final Q-Weights: {self._learned_weights}")
         self._save_weights()
-        tkinter.messagebox.showinfo("Done", "Training Complete! Brain saved.")
+        tkinter.messagebox.showinfo("Done", "Q-Learning Complete! Brain saved.")
+        self._new_game()
 
     def _save_weights(self):
         if not self._learned_weights: return
@@ -273,15 +269,14 @@ class OthelloGUI:
             with open(SAVE_FILE, 'r') as f:
                 self._learned_weights = json.load(f)
             
-            # Set Black to Default and White to Learned for display
-            self._stats_view.set_weights(othello.BLACK, othello_ai.DEFAULT_WEIGHTS)
-            self._stats_view.set_weights(othello.WHITE, self._learned_weights)
-            
-            self._stats_view.update_stats({'best_moves':[], 'score':0, 'depth':'-', 'nodes':'-', 'time':'-', 'move': 'Loaded'})
-            
+            self._stats_view.set_weights(self._learned_weights)
+            self._stats_view.update_stats(None)
+
             if not silent:
                 tkinter.messagebox.showinfo("Load", "AI Brain loaded successfully!")
+                self._new_game()
         except Exception as e:
+            self._learned_weights = othello_ai.DEFAULT_WEIGHTS
             if not silent:
                 tkinter.messagebox.showerror("Error", "No saved brain found.")
 

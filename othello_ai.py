@@ -1,203 +1,264 @@
 #  Nelson Garrido // Cristobal Herrera
-#  This and some edits to the other classses was made by us
-#  Minimax with Alpha-Beta pruning used for master/teacher ai
-#  Random hill climbing with biased heuristics for learning ai
+#  New class for everything related to the machine learning side
+
 
 import othello
-import copy
 import random
+import copy
 import time
 
-# teacher ai weights
-DEFAULT_WEIGHTS = {'corner': 1000, 'mobility': 100, 'coin': 10}
-# CORNER = score of corners, MOBILITY = amount of possible moves, COIN = amount of pieces of player's color
+# constants
+ALPHA = 0.01  # learning rate
+GAMMA = 0.90  # discount factor (how much value future vs immediate rewards)
+# exploration rate (chance of doing a random move)
+EXPRATE_START = 1.0
+EXPRATE_MIN = 0.1
+EXPRATE_DECAY = 0.995
 
-def get_best_move(game_state: othello.OthelloGame, depth: int = 4, weights: dict = None) -> dict:
-    """ Returns best move. Accepts optional 'weights' for ML. """
-    if weights is None:
-        weights = DEFAULT_WEIGHTS
+# Default starting weights if no previous values, these will be adjusted while learning
+DEFAULT_WEIGHTS = {'corner': 10.0, 'mobility': 1.0, 'coin': 0.1}
 
-    start_time = time.time()
-    nodes_explored = [0]
+def get_best_move(game_state: othello.OthelloGame, weights: dict = None, exploration: float = 0) -> dict:
+    if weights is None: weights = DEFAULT_WEIGHTS
     
-    ai_turn = game_state.get_turn()
-    valid_moves = game_state.get_valid_moves(ai_turn)
+    start_time = time.time()
+    turn = game_state.get_turn()
+    valid_moves = game_state.get_valid_moves(turn)
 
     stats = {
         'move': None,
         'best_moves': [],
-        'score': 0,
-        'nodes': 0,
+        'Q value': 0,
         'time': 0,
-        'depth': depth,
-        'weights': weights # <--- ADDED: Return weights to be displayed in GUI
+        'weights': weights,
     }
 
     if not valid_moves:
         return stats
 
+    # exploration vs exploitation
+    # if random < exploration = random move
+    if random.random() < exploration:
+        selected_move = random.choice(valid_moves)
+        q_val, _ = calculate_q_value(game_state, selected_move, turn, weights) #just for display
+        stats['move'] = selected_move
+        stats['Q value'] = q_val
+        return stats
+    # else pick highest Q value move (exploitation)
     best_score = float('-inf')
-    best_moves_list = []
-    
-    random.shuffle(valid_moves)
-    alpha = float('-inf')
-    beta = float('inf')
+    best_moves = []
 
+    # finds highest Q values from valid moves
     for move in valid_moves:
-        row, col = move
-        simulated_game = copy.deepcopy(game_state)
-        
-        try:
-            simulated_game.move(row, col)
-            score = minimax(simulated_game, depth - 1, alpha, beta, False, ai_turn, nodes_explored, weights)
-            
-            if score > best_score:
-                best_score = score
-                best_moves_list = [move] 
-            elif score == best_score:
-                best_moves_list.append(move)
-            
-            alpha = max(alpha, best_score)
-                
-        except othello.InvalidMoveException:
-            continue
+        q_val, _ = calculate_q_value(game_state, move, turn, weights)
+        if q_val > best_score:
+            best_score = q_val
+            best_moves = [move]
+        elif q_val == best_score:
+            best_moves.append(move)
 
+    # chooses a random move from moves with same Q value
+    selected_move = random.choice(best_moves) if best_moves else None 
+    
     end_time = time.time()
-    selected_move = random.choice(best_moves_list) if best_moves_list else None
-
     stats['move'] = selected_move
-    stats['best_moves'] = best_moves_list
-    stats['score'] = best_score
-    stats['nodes'] = nodes_explored[0]
+    stats['best_moves'] = best_moves
+    stats['Q value'] = best_score
     stats['time'] = round(end_time - start_time, 4)
-
+    
     return stats
 
 
-def minimax(game_state, depth, alpha, beta, maximizing_player, ai_color, nodes_count, weights):
-    # ( ... NO CHANGES TO MINIMAX FUNCTION ... )
-    # Keep the existing minimax code exactly as it was in your file
-    nodes_count[0] += 1
-
-    if depth == 0 or game_state.is_game_over():
-        return evaluate_board(game_state, ai_color, weights)
-
-    current_turn = game_state.get_turn()
-    valid_moves = game_state.get_valid_moves(current_turn)
-
-    if not valid_moves:
-        return evaluate_board(game_state, ai_color, weights)
-
-    if maximizing_player:
-        max_eval = float('-inf')
-        for move in valid_moves:
-            simulated_game = copy.deepcopy(game_state)
-            simulated_game.move(move[0], move[1])
-            eval_score = minimax(simulated_game, depth - 1, alpha, beta, False, ai_color, nodes_count, weights)
-            max_eval = max(max_eval, eval_score)
-            alpha = max(alpha, eval_score)
-            if beta <= alpha:
-                break 
-        return max_eval
-
-    else:
-        min_eval = float('inf')
-        for move in valid_moves:
-            simulated_game = copy.deepcopy(game_state)
-            simulated_game.move(move[0], move[1])
-            eval_score = minimax(simulated_game, depth - 1, alpha, beta, True, ai_color, nodes_count, weights)
-            min_eval = min(min_eval, eval_score)
-            beta = min(beta, eval_score)
-            if beta <= alpha:
-                break
-        return min_eval
-
-def evaluate_board(game_state: othello.OthelloGame, ai_color: str, weights: dict) -> float:
-    # ( ... NO CHANGES TO EVALUATE FUNCTION ... )
-    # Keep the existing evaluate code exactly as it was
-    opponent_color = othello.WHITE if ai_color == othello.BLACK else othello.BLACK
+def calculate_q_value(game_state, move, player_color, weights):
+    """
+    Calculates Q(s, a) using Linear Function Approximation.
+    Q(s, a) = w1*f1 + w2*f2 ...
     
-    ai_score = game_state.get_total_cells(ai_color)
-    op_score = game_state.get_total_cells(opponent_color)
-    coin_h = (ai_score - op_score) * weights['coin']
+    Returns: (Total Q value, Dictionary of Feature Values)
+    """
+    row, col = move
+    # Simulate the move to see the resulting state (s')
+    sim_game = copy.deepcopy(game_state)
+    try:
+        sim_game.move(row, col)
+    except:
+        return -1000, {}
 
+    features = extract_features(sim_game, player_color)
+    
+    q_value = (weights['corner'] * features['corner'] + 
+               weights['mobility'] * features['mobility'] + 
+               weights['coin'] * features['coin'])
+    
+    return q_value, features
+
+
+def extract_features(game_state, player_color):
+    """
+    Extracts the feature vector from the board state.
+    Features:
+    1. Corner: Do we own corners? (High value)
+    2. Mobility: How many moves do we have?
+    3. Coin: How many pieces do we have?
+    """
+    opponent = othello.WHITE if player_color == othello.BLACK else othello.BLACK
+    
+    # Feature 1: Coin Parity (Normalized -1 to 1)
+    my_coins = game_state.get_total_cells(player_color)
+    op_coins = game_state.get_total_cells(opponent)
+    total_coins = my_coins + op_coins
+    coin_feat = (my_coins - op_coins) / (total_coins + 1)
+
+    # Feature 2: Mobility (Normalized approx)
+    my_moves = len(game_state.get_valid_moves(player_color))
+    op_moves = len(game_state.get_valid_moves(opponent))
+    total_moves = my_moves + op_moves
+    mobility_feat = 0
+    if total_moves > 0:
+        mobility_feat = (my_moves - op_moves) / total_moves
+
+    # Feature 3: Corners (Most Important)
     rows = game_state.get_rows()
     cols = game_state.get_columns()
     corners = [(0, 0), (0, cols-1), (rows-1, 0), (rows-1, cols-1)]
-    ai_corners = 0
+    my_corners = 0
     op_corners = 0
     board = game_state.get_board()
+    
     for r, c in corners:
-        if board[r][c] == ai_color:
-            ai_corners += 1
-        elif board[r][c] == opponent_color:
+        if board[r][c] == player_color:
+            my_corners += 1
+        elif board[r][c] == opponent:
             op_corners += 1
-    corner_h = (ai_corners - op_corners) * weights['corner']
-
-    ai_moves = len(game_state.get_valid_moves(ai_color))
-    op_moves = len(game_state.get_valid_moves(opponent_color))
-    mobility_h = (ai_moves - op_moves) * weights['mobility']
-
-    return coin_h + corner_h + mobility_h
-
-
-# ---------------------------------------------------------
-# UPDATED: BACKGROUND TRAINING LOGIC
-# ---------------------------------------------------------
-
-def train_ai(iterations, progress_callback, starting_weights=None):
-    """
-    Run 'iterations' of training.
-    If starting_weights is None, we start with RANDOM values.
-    If starting_weights is provided, we Continue Training from there.
-    """
     
-    # 1. INITIALIZATION LOGIC
-    if starting_weights is None:
-        # Start completely random (Corrected as requested)
-        current_weights = {
-            'corner': random.uniform(500, 2000),   # Random start 0 to 2000
-            'mobility': random.uniform(1, 500),  # Random start 0 to 500
-            'coin': random.uniform(0, 100)       # Random start 0 to 100
-        }
+    corner_feat = (my_corners - op_corners) # Range -4 to 4
+
+    return {'coin': coin_feat, 'mobility': mobility_feat, 'corner': corner_feat}
+
+
+# ---------------------------------------------------------
+#  Q-LEARNING TRAINING LOOP
+# ---------------------------------------------------------
+
+def train_ai(episodes, progress_callback, starting_weights=None):
+    """
+    Trains the AI by playing against itself (Self-Play).
+    Updates weights using the Q-Learning Update Rule (Bellman).
+    """
+    if starting_weights:
+        weights = starting_weights.copy()
     else:
-        # Keep training existing brain
-        current_weights = starting_weights.copy()
-    
+        weights = DEFAULT_WEIGHTS.copy()
+
+    exploration = EXPRATE_START
     wins = 0
 
-    for i in range(iterations):
-        # 2. Create a Challenger (Mutation)
-        candidate_weights = current_weights.copy()
-        
-        # Pick one trait to mutate
-        trait = random.choice(list(candidate_weights.keys()))
-        mutation = random.randint(-50, 50)
-        candidate_weights[trait] += mutation
-        
-        # 3. Play Match: Candidate (Black) vs Teacher (White)
-        winner = play_headless_match(candidate_weights, DEFAULT_WEIGHTS, depth=2)
-        
-        # 4. Selection
-        if winner == othello.BLACK:
-            current_weights = candidate_weights
-            wins += 1
-        
-        progress_callback(i + 1, iterations, current_weights, wins)
-        
-    return current_weights
+    for episode in range(1, episodes + 1):
+        start_time = time.time()
 
+        game = othello.OthelloGame(8, 8, othello.BLACK, othello.WHITE, othello.MOST_CELLS)
+        
+        # History stores tuples: (state_features, reward_received_later)
+        # However, for TD(0) we update step-by-step. 
+        # For simplicity in this structure, we will use a "Last State" memory.
+        
+        last_features = {othello.BLACK: None, othello.WHITE: None}
 
-def play_headless_match(weights_black, weights_white, depth):
-    # ( ... NO CHANGES HERE ... )
-    game = othello.OthelloGame(8, 8, othello.BLACK, othello.WHITE, othello.MOST_CELLS)
-    while not game.is_game_over():
-        turn = game.get_turn()
-        w = weights_black if turn == othello.BLACK else weights_white
-        res = get_best_move(game, depth=depth, weights=w)
-        move = res['move']
-        if move:
-            game.move(move[0], move[1])
-        else:
-            game.switch_turn()
-    return game.return_winner()
+        last_q_value = 0
+        
+        while not game.is_game_over():
+            turn = game.get_turn()
+            
+            # 1. Choose Action (A) from State (S)
+            stats = get_best_move(game, weights, exploration)
+            move = stats['move']
+
+            # Capture the Q value from the move decision
+            if stats['Q value'] is not None:
+                last_q_value = stats['Q value']
+            
+            if move:
+                # Calculate features for Current State S (before move processed completely)
+                # Actually, Q(s,a) depends on the state *after* the move in our approximation
+                # So we use the features computed inside get_best_move or recompute them
+                
+                # We execute the move
+                game.move(move[0], move[1])
+                
+                # Now we are in state S'. 
+                # We calculate the features of S' relative to the player who just moved.
+                current_features = extract_features(game, turn)
+                
+                # 2. Update Weights for the PREVIOUS move of this player
+                # Q(s,a) -> r + gamma * max Q(s', a')
+                # Since this is "Approximate", we update weights using Gradient Descent
+                
+                prev_feat = last_features[turn]
+                if prev_feat is not None:
+                    # Reward for intermediate steps is usually 0, unless game over
+                    reward = 0 
+                    
+                    # Estimate Q(s') (The value of the state we just landed in)
+                    # For current player, the board is now flip-flopped, but extract_features handles logic
+                    # We approximate max Q(s', a') simply by the value of current state
+                    q_current_state = (weights['corner'] * current_features['corner'] +
+                                       weights['mobility'] * current_features['mobility'] +
+                                       weights['coin'] * current_features['coin'])
+                    
+                    q_last_state = (weights['corner'] * prev_feat['corner'] +
+                                    weights['mobility'] * prev_feat['mobility'] +
+                                    weights['coin'] * prev_feat['coin'])
+                    
+                    # TD Error = (Reward + Gamma * Estimate_Future) - Estimate_Current
+                    target = reward + GAMMA * q_current_state
+                    error = target - q_last_state
+                    
+                    # Update Weights: w = w + alpha * error * feature_value
+                    for key in weights:
+                        weights[key] += ALPHA * error * prev_feat[key]
+
+                # Store current features to be updated next turn
+                last_features[turn] = current_features
+                
+            else:
+                game.switch_turn()
+
+        # 3. Terminal State Update (Game Over)
+        winner = game.return_winner()
+        for player in [othello.BLACK, othello.WHITE]:
+            prev_feat = last_features[player]
+            if prev_feat:
+                if winner == player:
+                    reward = 1.0
+                    if player == othello.BLACK: wins += 1 # Track black wins for stats
+                elif winner is None:
+                    reward = 0.0 # Tie
+                else:
+                    reward = -1.0 # Loss
+                
+                # Calculate final Q value (which was the prediction)
+                q_last = (weights['corner'] * prev_feat['corner'] +
+                          weights['mobility'] * prev_feat['mobility'] +
+                          weights['coin'] * prev_feat['coin'])
+                
+                # Target is just the Reward (no future state)
+                error = reward - q_last
+                
+                for key in weights:
+                    weights[key] += ALPHA * error * prev_feat[key]
+
+        # Decay exploration
+        if exploration > EXPRATE_MIN:
+            exploration *= EXPRATE_DECAY
+
+        # 2. Stop Timer
+        end_time = time.time()
+        duration = end_time - start_time
+            
+        # Update GUI periodically
+        if episode % 10 == 0 or episode == 1: 
+            # updates only every 10 games finished to make it faster
+            # updating the gui every time would slow the training
+            progress_callback(episode, episodes, weights, f"{exploration:.3f}", duration, last_q_value)
+            
+    return weights

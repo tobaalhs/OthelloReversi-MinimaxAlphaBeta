@@ -1,16 +1,18 @@
+#  BASE GAME MADE BY Kevan Hong-Nhan Nguyen
+#  Slight changes made here to show stats on screen, and some other details
+
 import othello
 import tkinter
 
-# (Colors and Constants remain the same)
+# Constants
 BACKGROUND_COLOR = '#696969'
 GAME_COLOR = '#006000'
 FONT = ('Helvetica', 30)
 DIALOG_FONT = ('Helvetica', 20)
-STATS_FONT = ('Helvetica', 12)  # Reduced slightly to fit more text
+STATS_FONT = ('Helvetica', 12) 
 PLAYERS = {othello.BLACK: 'Black', othello.WHITE: 'White'}
 VICTORY_TYPES = {othello.MOST_CELLS: 'Most Cells', othello.LEAST_CELLS: 'Least Cells'}
 
-# (GameBoard class remains unchanged - assume it is here)
 class GameBoard:
     def __init__(self, game_state, game_width, game_height, root_window):
         self._game_state = game_state
@@ -112,56 +114,60 @@ class StatsView:
                                     fg='white', 
                                     font=STATS_FONT,
                                     justify=tkinter.LEFT,
-                                    width=30,   # Widen for split view
-                                    height=30,  # Taller for 2 sets of weights
+                                    width=30,
+                                    height=30,
                                     anchor='nw') 
         self._label.pack(anchor=tkinter.W)
         
-        # --- NEW: Store weights separately ---
-        self._black_weights = None
-        self._white_weights = None
+        self._weights = None
 
     def get_frame(self):
         return self._frame
     
     # --- NEW: Helper to store weights per player ---
-    def set_weights(self, color, weights):
-        if color == othello.BLACK:
-            self._black_weights = weights
-        elif color == othello.WHITE:
-            self._white_weights = weights
+    def set_weights(self, weights):
+        self._weights = weights
 
     def reset_weights(self):
-        self._black_weights = None
-        self._white_weights = None
+        self._weights = None
 
     def _format_weights(self, w):
-        if not w: return "Human / Default"
+        if not w: return "Default / None"
         # Abbreviate to fit: C=Corner, M=Mobility, $=Coin
-        return f"C:{int(w.get('corner',0))}  M:{int(w.get('mobility',0))}  $:{int(w.get('coin',0))}"
+        return f"C: {w.get('corner',0):.3f}  M: {w.get('mobility',0):.3f}  P: {w.get('coin',0):.3f}"
 
     def update_stats(self, stats: dict):
-        if not stats: return
+        weights_str = self._format_weights(self._weights)
+
+        if not stats:
+            # Just show weights if no move stats yet
+            text = (f"AI STATISTICS\n"
+                    f"----------------\n"
+                    f"Status: Waiting...\n\n"
+                    f"--- TRAINED BRAIN ---\n"
+                    f"{weights_str}\n"
+                    f"----------------\n")
+            self._label['text'] = text
+            return
         
         if stats['best_moves']:
             best_moves_str = "\n".join([str(m) for m in stats['best_moves']])
         else:
             best_moves_str = "None"
-        
-        # Format the dual weight display
-        black_str = self._format_weights(self._black_weights)
-        white_str = self._format_weights(self._white_weights)
+
+        rate_line = ""
+        if 'rate' in stats:
+            rate_line = f"Exploration Rate: {stats['rate']}\n\n"
 
         text = (f"AI STATISTICS\n"
                 f"----------------\n"
-                f"Depth:   {stats.get('depth', '-')}\n"
-                f"Nodes:   {stats.get('nodes', '-')}\n"
+                f"Algorithm:   {'Q-Learning'}\n"
                 f"Time:    {stats.get('time', '-')}s\n"
-                f"Score:   {stats.get('score', 0):.1f}\n\n"
-                f"--- WEIGHTS ---\n"
-                f"[BLACK]\n{black_str}\n\n"
-                f"[WHITE]\n{white_str}\n\n"
-                f"----------------\n"
+                f"Q Value:   {stats.get('Q value', 0):.4f}\n"
+                f"{rate_line}"
+                f"--- TRAINED WEIGHTS ---\n"
+                f"\n{weights_str}\n\n"
+                f"----------------\n\n"
                 f"Selected Move:\n{stats['move']}\n\n"
                 f"Top Moves:\n{best_moves_str}")
         

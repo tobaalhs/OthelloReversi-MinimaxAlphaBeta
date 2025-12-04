@@ -1,6 +1,9 @@
 #  BASE GAME MADE BY Kevan Hong-Nhan Nguyen
-#  Comments changed by us to let US understand better
-#  In this class, nothing was changed
+#  Some comments changed or added by us to let US understand better
+#  In this class, im pretty sure nothing else was changed
+
+''' this comments are by the original creator'''
+# most of these comments by us
 
 # Game Constants
 NONE = '.'
@@ -22,7 +25,7 @@ class OthelloGame:
 
     def __init__(self, rows: int, cols: int, turn: str,
                  top_left: str, victory_type: str):
-        ''' Initialize all of the games settings and creates the board. '''
+        ''' Initialize all of the games settings and creates the board. ''' #self explanatory
         self.rows = rows
         self.cols = cols
         self.current_board = self._new_game_board(rows, cols, top_left)
@@ -31,7 +34,7 @@ class OthelloGame:
 
 
     def _new_game_board(self, rows: int, cols: int, top_left: str) -> [[str]]: 
-        ''' Creates the Othello Game board with specified dimensions. '''
+        ''' Creates the Othello Game board with specified dimensions. ''' #pretty self explanatory too
         board =[]
 
         # Create empty board
@@ -49,7 +52,7 @@ class OthelloGame:
         return board
 
 
-    # 
+    #MOVING (important)
     def move(self, row: int, col: int) -> None:
         ''' Attempts to make a move at given row/col position. Current player/turn is the one that makes the move.
             If the player cannot make a move it raises an exception. If the player can make a move, the player finally plays
@@ -69,9 +72,8 @@ class OthelloGame:
                 next_turn = self._opposite_turn(self.turn)
             self._convert_adjacent_cells_in_direction(row, col, direction[0], direction[1], self.turn)
 
-
         # if valid move and opposite have possible moves, switch, else go again
-        # Ultimately, if the move is not valid, then raise an InvalidMoveException()
+        # if move invalid, then raise an InvalidMoveException() (nothing happens)
         if next_turn != self.turn:
             self.current_board[row][col] = self.turn
             if self.can_move(next_turn):
@@ -80,36 +82,37 @@ class OthelloGame:
             raise InvalidMoveException()
 
 
+    #CHECKS
     def _is_valid_directional_move(self, row: int, col: int, rowdelta: int, coldelta: int, turn: str) -> bool:
         ''' Given a move at specified row/col, checks in the given direction to see if
             a valid move can be made. Returns True if it can; False otherwise.
             Only supposed to be used in conjunction with _adjacent_opposite_color_directions()'''
+        #if true, we can flip pieces in that direction, else nope
         current_row = row + rowdelta
         current_col = col + coldelta
 
         last_cell_color = self._opposite_turn(turn)
 
         while True:
-            # Immediately return false if the board reaches the end (b/c there's no blank space for the cell to sandwich the other colored cell(s)
+            # breaks loop if the board reaches the end or cell is empty or same color as current player (i think)
             if not self._is_valid_cell(current_row, current_col):
-                break
+                break #false
             if self._cell_color(current_row, current_col) == NONE:
-                break           
+                break #false
             if self._cell_color(current_row, current_col) == turn:
-                last_cell_color = turn
+                last_cell_color = turn # reached the other side of the sandwich, ends with true
                 break
-
+            # if none of the above were triggered, we are checking a direction with flippable pieces, so we continue
             current_row += rowdelta
             current_col += coldelta
             
         return last_cell_color == turn
 
-
     def _adjacent_opposite_color_directions(self, row: int, col: int, turn: str) -> [tuple]:
         ''' Looks up to a possible of 8 directions surrounding the given move. If any of the
             move's surrounding cells is the opposite color of the move itself, then record
             the direction it is in and store it in a list of tuples [(rowdelta, coldelta)].
-            Return the list of the directions at the end. '''
+            Return the list of the directions at the end. ''' # already understandable explanation of function
         dir_list = []
         for rowdelta in range(-1, 2):
             for coldelta in range(-1, 2):
@@ -117,38 +120,33 @@ class OthelloGame:
                     if self.current_board[row + rowdelta][col + coldelta] == self._opposite_turn(turn):
                         dir_list.append((rowdelta, coldelta))
         return dir_list
-           
+          
 
+    #FLIPPING
     def _convert_adjacent_cells_in_direction(self, row: int, col: int,
                                              rowdelta: int, coldelta: int, turn: str) -> None:
         ''' If it can, converts all the adjacent/contiguous cells on a turn in
             a given direction until it finally reaches the specified cell's original color '''
-        if self._is_valid_directional_move(row, col, rowdelta, coldelta, turn):
+        if self._is_valid_directional_move(row, col, rowdelta, coldelta, turn): #checks if there is sandwich in direction
             current_row = row + rowdelta
             current_col = col + coldelta
             
-            while self._cell_color(current_row, current_col) == self._opposite_turn(turn):
+            while self._cell_color(current_row, current_col) == self._opposite_turn(turn): #flips the pieces
                 self._flip_cell(current_row, current_col)
                 current_row += rowdelta
                 current_col += coldelta
 
 
-    # Functions to be used to determine if the game is over and what do when it is:
-    #
-    # is_game_over()
-    # can_move()
-    # return_winner()
-    #
+    #FINISHING GAME
     def is_game_over(self) -> bool:
         ''' Looks through every empty cell and determines if there are
-            any valid moves left. If not, returns True; otherwise returns False '''
+            any valid moves left. If not, returns True; otherwise returns False ''' #if no one can move, ends
         return self.can_move(BLACK) == False and self.can_move(WHITE) == False
-
 
     def can_move(self, turn: str) -> bool:
         ''' Looks at all the empty cells in the board and checks to
             see if the specified player can move in any of the cells.
-            Returns True if it can move; False otherwise. '''
+            Returns True if it can move; False otherwise. ''' #self explanatory
         for row in range(self.rows):
             for col in range(self.cols):
                 if self.current_board[row][col] == NONE:
@@ -159,7 +157,7 @@ class OthelloGame:
 
     def return_winner(self) -> str:
         ''' Returns the winner. ONLY to be called once the game is over.
-            Returns None if the game is a TIE game.'''
+            Returns None if the game is a TIE game.''' #self explanatory
         black_cells = self.get_total_cells(BLACK)
         white_cells = self.get_total_cells(WHITE)
 
@@ -177,19 +175,11 @@ class OthelloGame:
                 return WHITE
 
 
-    # Basic functions that perform simple tasks, ranging from retrieving
-    # specific game data and switching turns:
-    #
-    # switch_turn()
-    # get_rows()
-    # get_columns()
-    # get_turn()
-    # get_total_cells()
-    #
+    #BASIC, all of them self explanatory
     def switch_turn(self) -> None:
         ''' Switches the player's turn from the current one to
             the other. Only to be called if the current player
-            cannot move at all. '''
+            cannot move at all. ''' 
         self.turn = self._opposite_turn(self.turn)
 
     def get_board(self) -> [[str]]:
@@ -218,17 +208,15 @@ class OthelloGame:
         return total
 
 
-    # The rest of the functions are private functions only to be used within this module
+    #BASIC (only used here), also self explanatory
     def _flip_cell(self, row: int, col: int) -> None:
         ''' Flips the specified cell over to the other color '''
         self.current_board[row][col] = self._opposite_turn(self.current_board[row][col])
-
 
     def _cell_color(self, row: int, col: int) -> str:
         ''' Determines the color/player of the specified cell '''
         return self.current_board[row][col]
         
-
     def _opposite_turn(self, turn: str) -> str:
         ''' Returns the player of the opposite player '''
         return {BLACK: WHITE, WHITE: BLACK}[turn]
@@ -236,7 +224,6 @@ class OthelloGame:
     def _require_valid_empty_space_to_move(self, row: int, col: int) -> bool:
         ''' In order to move, the specified cell space must be within board boundaries
             AND the cell has to be empty '''
-        
         if self._is_valid_cell(row, col) and self._cell_color(row, col) != NONE:
             raise InvalidMoveException()
 

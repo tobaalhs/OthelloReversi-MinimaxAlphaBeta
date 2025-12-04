@@ -1,14 +1,16 @@
 #  Nelson Garrido // Cristobal Herrera
 #  This and some edits to the other classses was made by us
-#  Minimax with Alpha-Beta pruning used
+#  Minimax with Alpha-Beta pruning used for master/teacher ai
+#  Random hill climbing with biased heuristics for learning ai
 
 import othello
 import copy
 import random
 import time
 
-# Default "Baseline" Weights (The Teacher / Standard AI)
+# teacher ai weights
 DEFAULT_WEIGHTS = {'corner': 1000, 'mobility': 100, 'coin': 10}
+# CORNER = score of corners, MOBILITY = amount of possible moves, COIN = amount of pieces of player's color
 
 def get_best_move(game_state: othello.OthelloGame, depth: int = 4, weights: dict = None) -> dict:
     """ Returns best move. Accepts optional 'weights' for ML. """
@@ -154,8 +156,8 @@ def train_ai(iterations, progress_callback, starting_weights=None):
     if starting_weights is None:
         # Start completely random (Corrected as requested)
         current_weights = {
-            'corner': random.uniform(0, 2000),   # Random start 0 to 2000
-            'mobility': random.uniform(0, 500),  # Random start 0 to 500
+            'corner': random.uniform(500, 2000),   # Random start 0 to 2000
+            'mobility': random.uniform(1, 500),  # Random start 0 to 500
             'coin': random.uniform(0, 100)       # Random start 0 to 100
         }
     else:

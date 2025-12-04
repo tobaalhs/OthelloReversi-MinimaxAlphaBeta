@@ -100,7 +100,7 @@ def extract_features(game_state, player_color):
     total_piecess = my_piecess + op_piecess
     pieces_feat = (my_piecess - op_piecess) / (total_piecess + 1)
 
-    # Mobility (Normalized approx)
+    # Mobility (Normalized)
     my_moves = len(game_state.get_valid_moves(player_color))
     op_moves = len(game_state.get_valid_moves(opponent))
     total_moves = my_moves + op_moves
@@ -108,7 +108,7 @@ def extract_features(game_state, player_color):
     if total_moves > 0:
         mobility_feat = (my_moves - op_moves) / total_moves
 
-    # Corners (Most Important, range -4 to 4)
+    # Corners (Most Important, range -4 to 4 since there's only 4 corners)
     rows = game_state.get_rows()
     cols = game_state.get_columns()
     corners = [(0, 0), (0, cols-1), (rows-1, 0), (rows-1, cols-1)]

@@ -265,7 +265,7 @@ class OptionDialog:
         self._row_column_option_list = (4, 6, 8, 10 ,12, 14, 16)
         self._player_option_list = ('Black', 'White')
         self._victory_option_list = ('Most Cells', 'Least Cells')
-        self._type_option_list = ('Human', 'Computer')
+        self._type_option_list = ('Human', 'Computer', 'ML Player')
 
         self._rows = current_rows
         self._columns = current_columns

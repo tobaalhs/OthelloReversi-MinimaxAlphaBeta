@@ -4,6 +4,7 @@
 import othello
 import othello_models
 import othello_ai
+import othello_ml
 import tkinter
 
 # Default / Initial Game Settings
@@ -124,8 +125,8 @@ class OthelloGUI:
 
     def _on_board_clicked(self, event: tkinter.Event) -> None:
         current_turn = self._game_state.get_turn()
-        if (current_turn == othello.BLACK and self._black_type == 'Computer') or \
-           (current_turn == othello.WHITE and self._white_type == 'Computer'):
+        if (current_turn == othello.BLACK and self._black_type in ['Computer', 'ML Player']) or \
+           (current_turn == othello.WHITE and self._white_type in ['Computer', 'ML Player']):
             return
 
         # --- FIX: Use the model's geometry logic ---
@@ -156,11 +157,11 @@ class OthelloGUI:
             self._check_for_ai_turn()
 
     def _check_for_ai_turn(self):
-        """ Checks if the current turn belongs to a Computer """
+        """ Checks if the current turn belongs to a Computer or ML Player """
         current_turn = self._game_state.get_turn()
-        
-        is_black_ai = (current_turn == othello.BLACK and self._black_type == 'Computer')
-        is_white_ai = (current_turn == othello.WHITE and self._white_type == 'Computer')
+
+        is_black_ai = (current_turn == othello.BLACK and self._black_type in ['Computer', 'ML Player'])
+        is_white_ai = (current_turn == othello.WHITE and self._white_type in ['Computer', 'ML Player'])
 
         if is_black_ai or is_white_ai:
             self._root_window.after(100, self._calculate_ai_turn)
@@ -171,14 +172,19 @@ class OthelloGUI:
             return
 
         current_turn = self._game_state.get_turn()
-        is_black_ai = (current_turn == othello.BLACK and self._black_type == 'Computer')
-        is_white_ai = (current_turn == othello.WHITE and self._white_type == 'Computer')
-        
-        if not (is_black_ai or is_white_ai):
+        is_black_computer = (current_turn == othello.BLACK and self._black_type == 'Computer')
+        is_white_computer = (current_turn == othello.WHITE and self._white_type == 'Computer')
+        is_black_ml = (current_turn == othello.BLACK and self._black_type == 'ML Player')
+        is_white_ml = (current_turn == othello.WHITE and self._white_type == 'ML Player')
+
+        if not (is_black_computer or is_white_computer or is_black_ml or is_white_ml):
             return
 
-        # 1. Run AI
-        ai_result = othello_ai.get_best_move(self._game_state)
+        # 1. Run AI or ML
+        if is_black_ml or is_white_ml:
+            ai_result = othello_ml.get_ml_move(self._game_state)
+        else:
+            ai_result = othello_ai.get_best_move(self._game_state)
         self._stats_view.update_stats(ai_result)
 
         move = ai_result['move'] 

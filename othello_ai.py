@@ -94,11 +94,13 @@ def extract_features(game_state, player_color):
     # calculation of the feature values
     opponent = othello.WHITE if player_color == othello.BLACK else othello.BLACK
     
-    # Pieces (Normalized -1 to 1)
-    my_piecess = game_state.get_total_cells(player_color)
-    op_piecess = game_state.get_total_cells(opponent)
-    total_piecess = my_piecess + op_piecess
-    pieces_feat = (my_piecess - op_piecess) / (total_piecess + 1)
+    # Pieces (Normalized)
+    my_pieces = game_state.get_total_cells(player_color)
+    op_pieces = game_state.get_total_cells(opponent)
+    total_pieces = my_pieces + op_pieces
+    pieces_feat = 0
+    if total_pieces > 0:
+        pieces_feat = (my_pieces - op_pieces) / total_pieces
 
     # Mobility (Normalized)
     my_moves = len(game_state.get_valid_moves(player_color))
@@ -108,7 +110,7 @@ def extract_features(game_state, player_color):
     if total_moves > 0:
         mobility_feat = (my_moves - op_moves) / total_moves
 
-    # Corners (Most Important, range -4 to 4 since there's only 4 corners)
+    # Corners (Most Important, normalized)
     rows = game_state.get_rows()
     cols = game_state.get_columns()
     corners = [(0, 0), (0, cols-1), (rows-1, 0), (rows-1, cols-1)]
@@ -122,7 +124,7 @@ def extract_features(game_state, player_color):
         elif board[r][c] == opponent:
             op_corners += 1
     
-    corner_feat = (my_corners - op_corners)
+    corner_feat = (my_corners - op_corners)/4
 
     return {'pieces': pieces_feat, 'mobility': mobility_feat, 'corner': corner_feat}
 
